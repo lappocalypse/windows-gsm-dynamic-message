@@ -1,0 +1,336 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows8.0</TargetFramework>
+    <OutputType>WinExe</OutputType>
+	<PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <IsWebBootstrapper>false</IsWebBootstrapper>
+    <PublishUrl>C:\Users\alexa\Downloads\WebSite\</PublishUrl>
+    <Install>true</Install>
+    <InstallFrom>Disk</InstallFrom>
+    <UpdateEnabled>false</UpdateEnabled>
+    <UpdateMode>Foreground</UpdateMode>
+    <UpdateInterval>7</UpdateInterval>
+    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
+    <UpdatePeriodically>false</UpdatePeriodically>
+    <UpdateRequired>false</UpdateRequired>
+    <MapFileExtensions>true</MapFileExtensions>
+    <WebPage>publish.htm</WebPage>
+	<IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <ApplicationRevision>1</ApplicationRevision>
+    <ApplicationVersion>1.25.0</ApplicationVersion>
+    <Version>1.25.0</Version>
+    <UseApplicationTrust>false</UseApplicationTrust>
+    <CreateDesktopShortcut>true</CreateDesktopShortcut>
+    <PublishWizardCompleted>true</PublishWizardCompleted>
+    <BootstrapperEnabled>true</BootstrapperEnabled>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <UseWindowsForms>true</UseWindowsForms>
+    <UseWPF>true</UseWPF>
+	<SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <ImportWindowsDesktopTargets>true</ImportWindowsDesktopTargets>
+  </PropertyGroup>
+   <PropertyGroup>
+      <PreserveCompilationContext>true</PreserveCompilationContext>
+   </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <Optimize>False</Optimize>
+    <NoWarn>1998;1416;CA1416</NoWarn>
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>none</DebugType>
+    <DefineConstants>
+    </DefineConstants>
+    <WarningLevel>4</WarningLevel>
+    <GenerateSerializationAssemblies>Auto</GenerateSerializationAssemblies>
+    <DocumentationFile>
+    </DocumentationFile>
+    <NoWarn>1998;1416;CA1416</NoWarn>
+    <Optimize>False</Optimize>
+  </PropertyGroup>
+  <PropertyGroup>
+    <PreserveCompilationContext>true</PreserveCompilationContext>
+</PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>Images\WindowsGSM.ico</ApplicationIcon>
+  </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject>WindowsGSM.Program</StartupObject>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ManifestCertificateThumbprint>67313EA18C45619B45D69B99247C435B6106EBCC</ManifestCertificateThumbprint>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ManifestKeyFile>
+    </ManifestKeyFile>
+  </PropertyGroup>
+  <PropertyGroup>
+    <GenerateManifests>false</GenerateManifests>
+  </PropertyGroup>
+  <PropertyGroup>
+    <SignManifests>false</SignManifests>
+  </PropertyGroup>
+  <PropertyGroup>
+    <AssemblyOriginatorKeyFile>
+    </AssemblyOriginatorKeyFile>
+  </PropertyGroup>
+  <PropertyGroup>
+    <TargetZone>LocalIntranet</TargetZone>
+  </PropertyGroup>
+  <PropertyGroup>
+    <DelaySign>false</DelaySign>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="Images\SteamCMD.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\csgo.png" />
+    <Resource Include="Images\Games\tf2.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\mc.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\gmod.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\mcpe.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\rust.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <COMReference Include="NetFwTypeLib">
+      <Guid>{58FBCF7C-E7A9-467C-80B3-FC65E8FCCA08}</Guid>
+      <VersionMajor>1</VersionMajor>
+      <VersionMinor>0</VersionMinor>
+      <Lcid>0</Lcid>
+      <WrapperTool>tlbimp</WrapperTool>
+      <Isolated>False</Isolated>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </COMReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\cs.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\cscz.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\hl2dm.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\l4d2.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\gta5.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\WindowsGSM-BRONZE.ico" />
+    <Resource Include="Images\WindowsGSM-GOLD.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\WindowsGSM-EMERALD.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\WindowsGSM-BRONZE.png" />
+    <Resource Include="Images\WindowsGSM-EMERALD.png" />
+    <Resource Include="Images\WindowsGSM-GOLD.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\7dtd.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\mordhau.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\dayz.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\se.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\mcbe.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\olow.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\packages\NCrontab.Signed.3.3.2\lib\net35\NCrontab.Signed.dll" WithCulture="false">
+      <Link>ReferencesEx\NCrontab.Signed.dll</Link>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\SplashScreen.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\css.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\ins.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\nmrih.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\arkse.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\zps.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\dods.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\sw.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Install.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Backup.ico" />
+    <Resource Include="Images\Restart.ico" />
+    <Resource Include="Images\Update.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Book.ico" />
+    <Resource Include="Images\Config.ico" />
+    <Resource Include="Images\Delete.ico" />
+    <Resource Include="Images\Files.ico" />
+    <Resource Include="Images\Issue.ico" />
+    <Resource Include="Images\Start.ico" />
+    <Resource Include="Images\Stop.ico" />
+    <Resource Include="Images\Zip.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\WindowsGSM-Icon-Border.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\rok.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\heat.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Tools\SourceMod.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Tools\DayZSAL.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\bw.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\WindowsGSM-Icon.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Tools\AMXModX.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\unt.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\egs.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\WindowsGSM.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\WindowsGSM.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\onset.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\avorion.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\ce.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\inss.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\dmc.png" />
+    <Resource Include="Images\Games\dod.png" />
+    <Resource Include="Images\Games\hlof.png" />
+    <Resource Include="Images\Games\rcc.png" />
+    <Resource Include="Images\Games\tfc.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\HMenu\Dashboard.ico" />
+    <Resource Include="Images\HMenu\Home.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\HMenu\Discord.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\sq.png" />
+    <Resource Include="Images\Games\tf.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\bt.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\HMenu\Settings.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\ps.png" />
+    <Resource Include="Images\Games\ror2.png" />
+    <Resource Include="Images\Games\eco.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Restore.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Games\vts.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Tools\OxideMod.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\HMenu\ViewPlugins.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Plugins\User.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Discord.Net.Commands" Version="3.17.4" />
+    <PackageReference Include="Discord.Net.WebSocket" Version="3.17.4" />
+    <PackageReference Include="Discord.Net.Interactions" Version="3.17.4" />
+    <PackageReference Include="Microsoft.CodeAnalysis" Version="4.13.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.13.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="8.0.2" />
+    <PackageReference Include="System.CodeDom" Version="10.0.0-preview.1.25080.5" />
+    <PackageReference Include="Discord.Net.WebSocket" Version="3.17.1" />
+    <PackageReference Include="MahApps.Metro" Version="3.0.0-alpha0513" />
+	 <PackageReference Include="LiveCharts.Wpf" Version="0.9.7.0" />
+    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <PackageReference Include="Microsoft.NETCore.Platforms" Version="8.0.0-preview.7.23375.6" />
+    <PackageReference Include="NCrontab.Signed" Version="3.3.3" />
+    <PackageReference Include="SharpZipLib" Version="1.4.2" />
+    <PackageReference Include="System.Management" Version="9.0.0" />
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.0" />
+    <PackageReference Include="System.Text.Json" Version="9.0.0" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="9.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Update="Properties\Settings.Designer.cs">
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
+</Project>

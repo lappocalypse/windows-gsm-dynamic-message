@@ -1,0 +1,49 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows8.0</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>WindowsGSM_Plugin_Development</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AssemblyTitle>WindowsGSM-Plugin-Development</AssemblyTitle>
+    <Product>WindowsGSM-Plugin-Development</Product>
+    <Copyright>Copyright ©  2020</Copyright>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <Optimize>true</Optimize>
+    <NoWarn>1998</NoWarn>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <NoWarn>1998</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\WindowsGSM\WindowsGSM.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+    <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="Plugins\ArmaReforger.cs" />
+    <Compile Remove="Plugins\Automobilista2.cs" />
+    <Compile Remove="Plugins\BoB.cs" />
+    <Compile Remove="Plugins\Brink.cs" />
+    <Compile Remove="Plugins\CoreKeeper.cs" />
+    <Compile Remove="Plugins\ForgeMC.cs" />
+    <Compile Remove="Plugins\GroundBranch.cs" />
+    <Compile Remove="Plugins\NuclearDawn.cs" />
+    <Compile Remove="Plugins\RisingWorld.cs" />
+    <Compile Remove="Plugins\SDTD_ExperimentalBeta.cs" />
+    <Compile Remove="Plugins\TABG.cs" />
+    <Compile Remove="Plugins\UT2004.cs" />
+    <Compile Remove="Plugins\Valheim.cs" />
+    <Compile Remove="Plugins\Wrapper.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Plugins\NewFolder\" />
+  </ItemGroup>
+</Project>
