@@ -8,7 +8,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using WindowsGSM.DiscordBot;
 using WindowsGSM.Functions;
+using static WindowsGSM.MainWindow;
 
 namespace WindowsGSM.DiscordBot
 {
@@ -21,6 +23,14 @@ namespace WindowsGSM.DiscordBot
         private static ulong? _lastDynamicMessageId = null;
         private static readonly string LOG_DIR = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs", "debug");
         private static readonly bool ENABLE_LOG = true;
+        const string TAG = "\u200B\u200C\u200D"; // zéro-width chars
+        private enum WatchMode
+        {
+            Start,
+            Stop,
+            Update,
+            Restart
+        }
 
         public Commands(DiscordSocketClient client)
         {
@@ -72,12 +82,23 @@ namespace WindowsGSM.DiscordBot
                 "Stopping" => "🟠",
                 "Updating" => "🔵",
                 "Backuping" => "🟣",
+                "Restarting" => "🔄",
                 _ => "⚪"
             };
         }
-
-        private static string BuildLine(string id, string status, string name)
+        private static bool IsActiveOrTransitionStatus(string status)
         {
+            return status.Equals("Started", StringComparison.OrdinalIgnoreCase)
+                || status.Equals("Starting", StringComparison.OrdinalIgnoreCase)
+                || status.Equals("Stopping", StringComparison.OrdinalIgnoreCase)
+                || status.Equals("Restarting", StringComparison.OrdinalIgnoreCase)
+                || status.Equals("Updating", StringComparison.OrdinalIgnoreCase);
+        }
+        private static string BuildLine(string id, string status, string name, bool isRestarting = false)
+        {
+            if (isRestarting)
+                return $"🆔 {id} | 🔄 Restarting | 🎮 {name}";
+
             return $"🆔 {id} | {GetStatusEmoji(status)} {status} | 🎮 {name}";
         }
 
@@ -86,11 +107,7 @@ namespace WindowsGSM.DiscordBot
             if (string.IsNullOrWhiteSpace(content))
                 return false;
 
-            content = content.Trim();
-
-            return content.Contains("🆔")
-                || content.StartsWith("all server offline.")
-                || content.StartsWith("Server name");
+            return content.StartsWith(TAG);
         }
 
         private async Task<IUserMessage> GetDynamicStatusMessageAsync(ISocketMessageChannel channel)
@@ -154,7 +171,7 @@ namespace WindowsGSM.DiscordBot
             string keepStoppedOnlyServerId = null,
             HashSet<string> keepStoppedServerIds = null)
         {
-            string content = "Aucun serveur actif.";
+            string content = "all server offline.";
 
             await Application.Current.Dispatcher.InvokeAsync(() =>
             {
@@ -169,6 +186,7 @@ namespace WindowsGSM.DiscordBot
                         x.Item2.Equals("Starting", StringComparison.OrdinalIgnoreCase) ||
                         x.Item2.Equals("Stopping", StringComparison.OrdinalIgnoreCase) ||
                         x.Item2.Equals("Updating", StringComparison.OrdinalIgnoreCase) ||
+                        x.Item2.Equals("Restarting", StringComparison.OrdinalIgnoreCase) ||
                         (!string.IsNullOrWhiteSpace(keepStoppedOnlyServerId) &&
                          x.Item1 == keepStoppedOnlyServerId &&
                          x.Item2.Equals("Stopped", StringComparison.OrdinalIgnoreCase)) ||
@@ -198,7 +216,7 @@ namespace WindowsGSM.DiscordBot
             if (string.IsNullOrWhiteSpace(content))
                 return;
 
-            content = content.Trim();
+            content = $"{TAG}{content.Trim()}";
 
             if (triggerMessage?.Channel != null)
             {
@@ -377,108 +395,136 @@ namespace WindowsGSM.DiscordBot
         private async Task WatchAndRefreshServerStatusAsync(
             SocketMessage triggerMessage,
             string serverId,
-            bool keepStoppedLine = false,
+            WatchMode mode,
             int maxLoops = 120,
             int delayMs = 500)
         {
-            Log($"[WATCH] BEGIN serverId={serverId} keepStoppedLine={keepStoppedLine} maxLoops={maxLoops} delayMs={delayMs}");
+            Log($"[WATCH] BEGIN serverId={serverId} mode={mode} maxLoops={maxLoops} delayMs={delayMs}");
 
             MainWindow.ServerStatus lastSeenStatus = (MainWindow.ServerStatus)(-1);
             bool completed = false;
-            bool sawStartTransition = false;
             bool didFinalRefreshInsideLoop = false;
+
             int stableStartedCount = 0;
+            int stableStoppedCount = 0;
 
             for (int i = 0; i < maxLoops; i++)
             {
                 MainWindow.ServerStatus status = MainWindow.ServerStatus.Stopped;
-                string serverName = serverId;
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
-                    MainWindow WindowsGSM = (MainWindow)Application.Current.MainWindow;
-                    if (WindowsGSM.IsServerExist(serverId))
-                    {
-                        status = WindowsGSM.GetServerStatus(serverId);
-                        serverName = WindowsGSM.GetServerName(serverId);
-                    }
+                    MainWindow wgsm = (MainWindow)Application.Current.MainWindow;
+                    if (wgsm.IsServerExist(serverId))
+                        status = wgsm.GetServerStatus(serverId);
                 });
 
-                Log($"[WATCH] LOOP={i} serverId={serverId} status={status} lastSeenStatus={lastSeenStatus} sawStartTransition={sawStartTransition}");
-
-                if (!keepStoppedLine)
-                {
-                    if (status == MainWindow.ServerStatus.Starting ||
-                        status == MainWindow.ServerStatus.Updating)
-                    {
-                        sawStartTransition = true;
-                    }
-                }
+                Log($"[WATCH] LOOP={i} serverId={serverId} mode={mode} status={status} lastSeenStatus={lastSeenStatus} startedCount={stableStartedCount} stoppedCount={stableStoppedCount}");
 
                 if (status == MainWindow.ServerStatus.Started)
                     stableStartedCount++;
                 else
                     stableStartedCount = 0;
 
-                if (status != lastSeenStatus)
+                if (status == MainWindow.ServerStatus.Stopped)
+                    stableStoppedCount++;
+                else
+                    stableStoppedCount = 0;
+
+                if (status != lastSeenStatus || mode == WatchMode.Restart)
                 {
                     Log($"[WATCH] STATUS CHANGE serverId={serverId} {lastSeenStatus} -> {status}");
 
-                    if (keepStoppedLine && status == MainWindow.ServerStatus.Stopped)
+                    if (mode == WatchMode.Restart &&
+                        status.ToString().Equals("Restarting", StringComparison.OrdinalIgnoreCase))
                     {
-                        Log($"[WATCH] REFRESH STOPPED WITH FULL LIST serverId={serverId} name={serverName}");
+                        string name = "";
 
+                        await Application.Current.Dispatcher.InvokeAsync(() =>
+                        {
+                            MainWindow wgsm = (MainWindow)Application.Current.MainWindow;
+                            if (wgsm.IsServerExist(serverId))
+                                name = wgsm.GetServerName(serverId);
+                        });
+
+                        await SetDynamicStatusMessageAsync(
+                            triggerMessage,
+                            BuildLine(serverId, status.ToString(), name, isRestarting: true)
+                        );
+                    }
+                    else
+                    {
                         await RefreshDynamicServerListAsync(
                             triggerMessage,
-                            keepStoppedOnlyServerId: serverId
+                            keepStoppedOnlyServerId: (mode == WatchMode.Stop || mode == WatchMode.Update || mode == WatchMode.Restart) ? serverId : null
                         );
-
-                        await Task.Delay(700);
-                        await RefreshDynamicServerListAsync(triggerMessage);
-
-                        lastSeenStatus = status;
-                        completed = true;
-                        didFinalRefreshInsideLoop = true;
-                        break;
                     }
-
-                    await RefreshDynamicServerListAsync(
-                        triggerMessage,
-                        keepStoppedOnlyServerId: keepStoppedLine ? serverId : null
-                    );
 
                     lastSeenStatus = status;
                 }
 
-                if (!keepStoppedLine)
+                if (mode == WatchMode.Start)
                 {
-                    if (status == MainWindow.ServerStatus.Started && stableStartedCount >= 2)
+                    if (stableStartedCount >= 2)
                     {
-                        Log($"[WATCH] STABLE STARTED serverId={serverId}");
+                        Log($"[WATCH] START CONFIRMED serverId={serverId}");
                         completed = true;
                         didFinalRefreshInsideLoop = true;
                         break;
                     }
 
-                    if (status == MainWindow.ServerStatus.Stopped && sawStartTransition)
+                    if (stableStoppedCount >= 5)
                     {
-                        Log($"[WATCH] BREAK stopped after transition serverId={serverId}");
+                        Log($"[WATCH] START FAILED CONFIRMED STOPPED serverId={serverId}");
                         await RefreshDynamicServerListAsync(triggerMessage);
                         completed = true;
                         didFinalRefreshInsideLoop = true;
                         break;
                     }
+                }
 
-                    if (status == MainWindow.ServerStatus.Stopped && !sawStartTransition)
+                if (mode == WatchMode.Stop)
+                {
+                    if (stableStoppedCount >= 3)
                     {
-                        Log($"[WATCH] IGNORE early stopped serverId={serverId}");
+                        Log($"[WATCH] STOP CONFIRMED serverId={serverId}");
+
+                        await RefreshDynamicServerListAsync(triggerMessage, keepStoppedOnlyServerId: serverId);
+
+                        await Task.Delay(700);
+                        await RefreshDynamicServerListAsync(triggerMessage);
+
+                        completed = true;
+                        didFinalRefreshInsideLoop = true;
+                        break;
                     }
                 }
-                else
+
+                if (mode == WatchMode.Update)
                 {
-                    if (status == MainWindow.ServerStatus.Stopped)
+                    if (stableStoppedCount >= 3)
                     {
-                        Log($"[WATCH] BREAK stopped serverId={serverId}");
+                        Log($"[WATCH] UPDATE FINISHED serverId={serverId}");
+
+                        await RefreshDynamicServerListAsync(triggerMessage, keepStoppedOnlyServerId: serverId);
+
+                        await Task.Delay(700);
+                        await RefreshDynamicServerListAsync(triggerMessage);
+
+                        completed = true;
+                        didFinalRefreshInsideLoop = true;
+                        break;
+                    }
+                }
+
+                if (mode == WatchMode.Restart)
+                {
+                    if (stableStartedCount >= 2)
+                    {
+                        Log($"[WATCH] RESTART CONFIRMED STARTED serverId={serverId}");
+
+                        await RefreshDynamicServerListAsync(triggerMessage);
+
                         completed = true;
                         didFinalRefreshInsideLoop = true;
                         break;
@@ -492,15 +538,18 @@ namespace WindowsGSM.DiscordBot
             {
                 await RefreshDynamicServerListAsync(
                     triggerMessage,
-                    keepStoppedOnlyServerId: keepStoppedLine ? serverId : null
+                    keepStoppedOnlyServerId: (mode == WatchMode.Stop || mode == WatchMode.Update || mode == WatchMode.Restart) ? serverId : null
                 );
             }
 
-            Log($"[WATCH] END serverId={serverId} completed={completed} sawStartTransition={sawStartTransition} didFinalRefreshInsideLoop={didFinalRefreshInsideLoop}");
+            Log($"[WATCH] END serverId={serverId} mode={mode} completed={completed} didFinalRefreshInsideLoop={didFinalRefreshInsideLoop}");
         }
 
-        private async Task SendTemporaryMessage(SocketMessage triggerMessage, string content)
+        private async Task SendTemporaryMessage(SocketMessage triggerMessage, string content, int deleteAfterMs = 10000)
         {
+            if (string.IsNullOrWhiteSpace(content))
+                return;
+
             Log($"[BOT] SendTemporaryMessage content={content.Replace("\n", " | ")}");
 
             var msg = await triggerMessage.Channel.SendMessageAsync(content);
@@ -512,13 +561,39 @@ namespace WindowsGSM.DiscordBot
                 {
                     try
                     {
-                        await Task.Delay(5000);
+                        await Task.Delay(deleteAfterMs);
                         await msg.DeleteAsync();
                         Log($"[BOT] SendTemporaryMessage deleted id={msg.Id}");
                     }
                     catch (Exception ex)
                     {
                         LogError("SendTemporaryMessage delete failed", ex);
+                    }
+                });
+            }
+        }
+
+        private async Task SendTemporaryEmbed(SocketMessage triggerMessage, Embed embed, int deleteAfterMs = 10000)
+        {
+            if (embed == null)
+                return;
+
+            var msg = await triggerMessage.Channel.SendMessageAsync(embed: embed);
+            if (msg != null)
+            {
+                Log($"[BOT] SendTemporaryEmbed sent id={msg.Id}");
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await Task.Delay(deleteAfterMs);
+                        await msg.DeleteAsync();
+                        Log($"[BOT] SendTemporaryEmbed deleted id={msg.Id}");
+                    }
+                    catch (Exception ex)
+                    {
+                        LogError("SendTemporaryEmbed delete failed", ex);
                     }
                 });
             }
@@ -584,7 +659,7 @@ namespace WindowsGSM.DiscordBot
                         if (command == "check")
                         {
                             Log("[CMD] Action check");
-                            await message.Channel.SendMessageAsync(
+                            await SendTemporaryMessage(message,
                                 serverIds.Contains("0")
                                 ? "You have full permission.\nCommands: `check`, `list`, `start`, `stop`, `stopAll`, `restart`, `send`, `sendR`, `backup`, `update`, `players`, `stats`"
                                 : $"You have permission on servers (`{string.Join(",", serverIds.ToArray())}`)\nCommands: `check`, `start`, `stop`, `restart`, `send`, `sendR`, `backup`, `update`, `players`, `stats`");
@@ -623,7 +698,7 @@ namespace WindowsGSM.DiscordBot
                         else
                         {
                             Log($"[CMD] Permission denied command={command} raw={message.Content}");
-                            await message.Channel.SendMessageAsync("You don't have permission to access.");
+                            await SendTemporaryMessage(message, "You don't have permission to access.");
                         }
                         break;
 
@@ -666,7 +741,7 @@ namespace WindowsGSM.DiscordBot
                 embed.AddField("PlayerData", "Something went wrong in your query!");
             }
 
-            await message.Channel.SendMessageAsync(embed: embed.Build());
+            await SendTemporaryEmbed(message, embed.Build());
         }
 
         private async Task Action_List(SocketMessage message)
@@ -699,14 +774,12 @@ namespace WindowsGSM.DiscordBot
                 if (WindowsGSM == null || !WindowsGSM.IsServerExist(args[1]))
                 {
                     Log($"[CMD] Action_Start server not found id={args[1]}");
-                    await message.Channel.SendMessageAsync($"Server (ID: {args[1]}) does not exists.");
+                    await SendTemporaryMessage(message, $"Server (ID: {args[1]}) does not exists.");
                     return;
                 }
 
                 if (serverStatus == MainWindow.ServerStatus.Stopped)
                 {
-                    Log($"[CMD] Action_Start launching watcher+start id={args[1]}");
-
                     _ = Task.Run(async () =>
                     {
                         try
@@ -725,7 +798,7 @@ namespace WindowsGSM.DiscordBot
                         }
                     });
 
-                    await WatchAndRefreshServerStatusAsync(message, args[1], keepStoppedLine: false);
+                    await WatchAndRefreshServerStatusAsync(message, args[1], WatchMode.Start);
                 }
                 else
                 {
@@ -736,7 +809,7 @@ namespace WindowsGSM.DiscordBot
             else
             {
                 Log($"[CMD] Action_Start invalid usage command={command}");
-                await message.Channel.SendMessageAsync($"Usage: {Configs.GetBotPrefix()}wgsm start `<SERVERID>`");
+                await SendTemporaryMessage(message, $"Usage: {Configs.GetBotPrefix()}wgsm start `<SERVERID>`");
             }
         }
 
@@ -764,7 +837,7 @@ namespace WindowsGSM.DiscordBot
                 if (WindowsGSM == null || !WindowsGSM.IsServerExist(args[1]))
                 {
                     Log($"[CMD] Action_Stop server not found id={args[1]}");
-                    await message.Channel.SendMessageAsync($"Server (ID: {args[1]}) does not exists.");
+                    await SendTemporaryMessage(message, $"Server (ID: {args[1]}) does not exists.");
                     return;
                 }
 
@@ -790,7 +863,7 @@ namespace WindowsGSM.DiscordBot
                         }
                     });
 
-                    await WatchAndRefreshServerStatusAsync(message, args[1], keepStoppedLine: true);
+                    await WatchAndRefreshServerStatusAsync(message, args[1], WatchMode.Stop);
                 }
                 else
                 {
@@ -801,7 +874,7 @@ namespace WindowsGSM.DiscordBot
             else
             {
                 Log($"[CMD] Action_Stop invalid usage command={command}");
-                await message.Channel.SendMessageAsync($"Usage: {Configs.GetBotPrefix()}wgsm stop `<SERVERID>`");
+                await SendTemporaryMessage(message, $"Usage: {Configs.GetBotPrefix()}wgsm stop `<SERVERID>`");
             }
         }
 
@@ -811,12 +884,14 @@ namespace WindowsGSM.DiscordBot
 
             List<string> serverIds = new List<string>();
             HashSet<string> requestedServerIds = new HashSet<string>();
-            HashSet<string> newlyStoppedIds = new HashSet<string>();
+            HashSet<string> confirmedStoppedIds = new HashSet<string>();
+            HashSet<string> lastConfirmed = new HashSet<string>();
+            Dictionary<string, int> stoppedStableCount = new Dictionary<string, int>();
 
             await Application.Current.Dispatcher.InvokeAsync(() =>
             {
-                MainWindow WindowsGSM = (MainWindow)Application.Current.MainWindow;
-                serverIds = WindowsGSM.GetServerList()
+                MainWindow wgsm = (MainWindow)Application.Current.MainWindow;
+                serverIds = wgsm.GetServerList()
                     .OrderBy(x => int.TryParse(x.Item1, out var id) ? id : int.MaxValue)
                     .Select(x => x.Item1)
                     .ToList();
@@ -829,13 +904,11 @@ namespace WindowsGSM.DiscordBot
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
-                    MainWindow WindowsGSM = (MainWindow)Application.Current.MainWindow;
+                    MainWindow wgsm = (MainWindow)Application.Current.MainWindow;
+                    exists = wgsm.IsServerExist(serverId);
 
-                    exists = WindowsGSM.IsServerExist(serverId);
                     if (exists)
-                    {
-                        statusBefore = WindowsGSM.GetServerStatus(serverId);
-                    }
+                        statusBefore = wgsm.GetServerStatus(serverId);
                 });
 
                 if (!exists)
@@ -846,15 +919,17 @@ namespace WindowsGSM.DiscordBot
                 if (statusBefore == MainWindow.ServerStatus.Stopped)
                     continue;
 
+                requestedServerIds.Add(serverId);
+                stoppedStableCount[serverId] = 0;
+
                 try
                 {
                     await Application.Current.Dispatcher.InvokeAsync(async () =>
                     {
-                        MainWindow WindowsGSM = (MainWindow)Application.Current.MainWindow;
-                        await WindowsGSM.StopServerById(serverId, message.Author.Id.ToString(), message.Author.Username);
+                        MainWindow wgsm = (MainWindow)Application.Current.MainWindow;
+                        await wgsm.StopServerById(serverId, message.Author.Id.ToString(), message.Author.Username);
                     });
 
-                    requestedServerIds.Add(serverId);
                     Log($"[CMD] Action_StopAll stop requested id={serverId}");
                 }
                 catch (Exception ex)
@@ -868,12 +943,12 @@ namespace WindowsGSM.DiscordBot
             if (requestedServerIds.Count == 0)
             {
                 Log("[CMD] Action_StopAll no action needed");
-                await RefreshDynamicServerListAsync(message);
                 return;
             }
 
             const int maxLoops = 240;
             const int delayMs = 500;
+            const int stoppedStableNeeded = 2;
 
             for (int loop = 0; loop < maxLoops; loop++)
             {
@@ -894,37 +969,56 @@ namespace WindowsGSM.DiscordBot
 
                         Log($"[STOPALL-WATCH] loop={loop} id={id} status={status}");
 
-                        if (status.Equals("Started", StringComparison.OrdinalIgnoreCase) ||
-                            status.Equals("Starting", StringComparison.OrdinalIgnoreCase) ||
-                            status.Equals("Stopping", StringComparison.OrdinalIgnoreCase) ||
-                            status.Equals("Updating", StringComparison.OrdinalIgnoreCase))
+                        if (IsActiveOrTransitionStatus(status))
                         {
                             activeOrTransitionCount++;
+                            stoppedStableCount[id] = 0;
+                            continue;
                         }
 
                         if (status.Equals("Stopped", StringComparison.OrdinalIgnoreCase))
                         {
-                            newlyStoppedIds.Add(id);
+                            stoppedStableCount[id]++;
+
+                            if (stoppedStableCount[id] >= stoppedStableNeeded)
+                            {
+                                if (!confirmedStoppedIds.Contains(id))
+                                {
+                                    confirmedStoppedIds.Add(id);
+                                    Log($"[STOPALL-WATCH] CONFIRMED STOP id={id}");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            stoppedStableCount[id] = 0;
                         }
                     }
                 });
 
-                if (newlyStoppedIds.Count > 0)
-                    await RefreshDynamicServerListAsync(message, keepStoppedServerIds: newlyStoppedIds);
-
-                Log($"[STOPALL-WATCH] loop={loop} activeOrTransitionCount={activeOrTransitionCount} newlyStoppedIds={string.Join(",", newlyStoppedIds)}");
-
-                if (activeOrTransitionCount == 0)
+                if (!confirmedStoppedIds.SetEquals(lastConfirmed))
                 {
-                    Log("[STOPALL-WATCH] all requested servers are stopped");
+                    lastConfirmed = new HashSet<string>(confirmedStoppedIds);
+
+                    await RefreshDynamicServerListAsync(
+                        message,
+                        keepStoppedServerIds: confirmedStoppedIds
+                    );
+                }
+
+                Log($"[STOPALL-WATCH] loop={loop} activeOrTransitionCount={activeOrTransitionCount} confirmedStoppedIds={string.Join(",", confirmedStoppedIds)}");
+
+                if (confirmedStoppedIds.Count == requestedServerIds.Count && activeOrTransitionCount == 0)
+                {
+                    Log("[STOPALL-WATCH] all requested servers are confirmed stopped");
                     break;
                 }
 
                 await Task.Delay(delayMs);
             }
 
-            await RefreshDynamicServerListAsync(message); // final = no more keepStopped
-
+            await Task.Delay(700);
+            await RefreshDynamicServerListAsync(message);
         }
 
         private async Task Action_Restart(SocketMessage message, string command)
@@ -934,35 +1028,57 @@ namespace WindowsGSM.DiscordBot
             string[] args = command.Split(' ');
             if (args.Length == 2 && int.TryParse(args[1], out int i))
             {
-                await Application.Current.Dispatcher.InvokeAsync(async () =>
+                MainWindow WindowsGSM = null;
+                MainWindow.ServerStatus serverStatus = MainWindow.ServerStatus.Stopped;
+
+                await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
-                    MainWindow WindowsGSM = (MainWindow)Application.Current.MainWindow;
+                    WindowsGSM = (MainWindow)Application.Current.MainWindow;
                     if (WindowsGSM.IsServerExist(args[1]))
-                    {
-                        MainWindow.ServerStatus serverStatus = WindowsGSM.GetServerStatus(args[1]);
-                        Log($"[CMD] Action_Restart id={args[1]} status={serverStatus}");
-
-                        if (serverStatus == MainWindow.ServerStatus.Started || serverStatus == MainWindow.ServerStatus.Starting)
-                        {
-                            await WindowsGSM.RestartServerById(args[1], message.Author.Id.ToString(), message.Author.Username);
-                            Log($"[CMD] Action_Restart RestartServerById OK id={args[1]}");
-                        }
-
-                        await SendTemporaryMessage(
-                            message,
-                            BuildLine(args[1], WindowsGSM.GetServerStatus(args[1]).ToString(), WindowsGSM.GetServerName(args[1])));
-                    }
-                    else
-                    {
-                        Log($"[CMD] Action_Restart server not found id={args[1]}");
-                        await message.Channel.SendMessageAsync($"Server (ID: {args[1]}) does not exists.");
-                    }
+                        serverStatus = WindowsGSM.GetServerStatus(args[1]);
                 });
+
+                if (WindowsGSM == null || !WindowsGSM.IsServerExist(args[1]))
+                {
+                    await SendTemporaryMessage(message, $"Server (ID: {args[1]}) does not exists.");
+                    return;
+                }
+
+                Log($"[CMD] Action_Restart id={args[1]} status={serverStatus}");
+
+                if (serverStatus == MainWindow.ServerStatus.Started || serverStatus == MainWindow.ServerStatus.Starting)
+                {
+                    Log($"[CMD] Action_Restart launching watcher+restart id={args[1]}");
+
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await Application.Current.Dispatcher.InvokeAsync(async () =>
+                            {
+                                MainWindow wgsm = (MainWindow)Application.Current.MainWindow;
+                                Log($"[CMD] RestartServerById BEGIN id={args[1]}");
+                                await wgsm.RestartServerById(args[1], message.Author.Id.ToString(), message.Author.Username);
+                                Log($"[CMD] RestartServerById END id={args[1]}");
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            LogError($"RestartServerById failed id={args[1]}", ex);
+                        }
+                    });
+
+                    // 👇 IMPORTANT
+                    await WatchAndRefreshServerStatusAsync(message, args[1], WatchMode.Restart);
+                }
+                else
+                {
+                    await SendTemporaryMessage(message, $"Server (ID: {args[1]}) must be started to restart.");
+                }
             }
             else
             {
-                Log($"[CMD] Action_Restart invalid usage command={command}");
-                await message.Channel.SendMessageAsync($"Usage: {Configs.GetBotPrefix()}wgsm restart `<SERVERID>`");
+                await SendTemporaryMessage(message, $"Usage: {Configs.GetBotPrefix()}wgsm restart `<SERVERID>`");
             }
         }
 
@@ -986,31 +1102,40 @@ namespace WindowsGSM.DiscordBot
                             string sendCommand = command.Substring(args[1].Length + 6).Trim();
                             Log($"[CMD] Action_SendCommand sendCommand={sendCommand}");
 
-                            var response = await WindowsGSM.SendCommandById(args[1], sendCommand, message.Author.Id.ToString(), message.Author.Username, withResponse ? 1000 : 0);
+                            var response = await WindowsGSM.SendCommandById(
+                                args[1],
+                                sendCommand,
+                                message.Author.Id.ToString(),
+                                message.Author.Username,
+                                withResponse ? 1000 : 0
+                            );
 
-                            await message.Channel.SendMessageAsync($"Server (ID: {args[1]}) {(!string.IsNullOrWhiteSpace(response) ? "Command sent" : "Fail to send command")}. | `{sendCommand}`");
+                            await SendTemporaryMessage(
+                                message,
+                                $"Server (ID: {args[1]}) {(!string.IsNullOrWhiteSpace(response) ? "Command sent" : "Fail to send command")}. | `{sendCommand}`"
+                            );
 
-                            if (withResponse)
+                            if (withResponse && !string.IsNullOrWhiteSpace(response))
                             {
                                 await SendMultiLog(message, response);
                             }
                         }
                         else
                         {
-                            await message.Channel.SendMessageAsync($"Server (ID: {args[1]}) currently in {serverStatus} state, not able to send command.");
+                            await SendTemporaryMessage(message, $"Server (ID: {args[1]}) currently in {serverStatus} state, not able to send command.");
                         }
                     }
                     else
                     {
                         Log($"[CMD] Action_SendCommand server not found id={args[1]}");
-                        await message.Channel.SendMessageAsync($"Server (ID: {args[1]}) does not exists.");
+                        await SendTemporaryMessage(message, $"Server (ID: {args[1]}) does not exists.");
                     }
                 });
             }
             else
             {
                 Log($"[CMD] Action_SendCommand invalid usage command={command}");
-                await message.Channel.SendMessageAsync($"Usage: {Configs.GetBotPrefix()}wgsm send `<SERVERID>` `<COMMAND>`");
+                await SendTemporaryMessage(message, $"Usage: {Configs.GetBotPrefix()}wgsm send `<SERVERID>` `<COMMAND>`");
             }
         }
 
@@ -1018,12 +1143,39 @@ namespace WindowsGSM.DiscordBot
         {
             Log("[BOT] SendMultiLog BEGIN");
 
-            await message.Channel.SendMessageAsync("LastLog:");
+            var headerMsg = await message.Channel.SendMessageAsync("LastLog:");
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(10000);
+                    await headerMsg.DeleteAsync();
+                }
+                catch (Exception ex)
+                {
+                    LogError("SendMultiLog header delete failed", ex);
+                }
+            });
+
             const int signsToSend = 1800;
             for (int i = 0; i < response.Length; i += signsToSend)
             {
                 var len = i + signsToSend < response.Length ? signsToSend : response.Length - i;
-                await message.Channel.SendMessageAsync($"```\n{response.Substring(i, len)}\n```");
+
+                var logMsg = await message.Channel.SendMessageAsync($"```\n{response.Substring(i, len)}\n```");
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await Task.Delay(10000);
+                        await logMsg.DeleteAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        LogError("SendMultiLog delete failed", ex);
+                    }
+                });
             }
 
             Log("[BOT] SendMultiLog END");
@@ -1046,16 +1198,16 @@ namespace WindowsGSM.DiscordBot
 
                         if (serverStatus == MainWindow.ServerStatus.Stopped)
                         {
-                            await message.Channel.SendMessageAsync($"Server (ID: {args[1]}) Backup started - this may take some time.");
+                            await SendTemporaryMessage(message, $"Server (ID: {args[1]}) Backup started - this may take some time.");
                             await WindowsGSM.BackupServerById(args[1], message.Author.Id.ToString(), message.Author.Username);
                         }
                         else if (serverStatus == MainWindow.ServerStatus.Backuping)
                         {
-                            await message.Channel.SendMessageAsync($"Server (ID: {args[1]}) already Backuping.");
+                            await SendTemporaryMessage(message, $"Server (ID: {args[1]}) already Backuping.");
                         }
                         else
                         {
-                            await message.Channel.SendMessageAsync($"Server (ID: {args[1]}) currently in {serverStatus} state, not able to backup.");
+                            await SendTemporaryMessage(message, $"Server (ID: {args[1]}) currently in {serverStatus} state, not able to backup.");
                         }
 
                         await SendTemporaryMessage(
@@ -1065,14 +1217,14 @@ namespace WindowsGSM.DiscordBot
                     else
                     {
                         Log($"[CMD] Action_Backup server not found id={args[1]}");
-                        await message.Channel.SendMessageAsync($"Server (ID: {args[1]}) does not exists.");
+                        await SendTemporaryMessage(message, $"Server (ID: {args[1]}) does not exists.");
                     }
                 });
             }
             else
             {
                 Log($"[CMD] Action_Backup invalid usage command={command}");
-                await message.Channel.SendMessageAsync($"Usage: {Configs.GetBotPrefix()}wgsm backup `<SERVERID>`");
+                await SendTemporaryMessage(message, $"Usage: {Configs.GetBotPrefix()}wgsm backup `<SERVERID>`");
             }
         }
 
@@ -1083,36 +1235,62 @@ namespace WindowsGSM.DiscordBot
             string[] args = command.Split(' ');
             if (args.Length >= 2 && int.TryParse(args[1], out int i))
             {
-                await Application.Current.Dispatcher.InvokeAsync(async () =>
+                MainWindow WindowsGSM = null;
+                MainWindow.ServerStatus serverStatus = MainWindow.ServerStatus.Stopped;
+
+                await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
-                    MainWindow WindowsGSM = (MainWindow)Application.Current.MainWindow;
+                    WindowsGSM = (MainWindow)Application.Current.MainWindow;
                     if (WindowsGSM.IsServerExist(args[1]))
-                    {
-                        MainWindow.ServerStatus serverStatus = WindowsGSM.GetServerStatus(args[1]);
-                        Log($"[CMD] Action_Update id={args[1]} status={serverStatus}");
-
-                        if (serverStatus == MainWindow.ServerStatus.Stopped)
-                        {
-                            await WindowsGSM.UpdateServerById(args[1], message.Author.Id.ToString(), message.Author.Username);
-                        }
-                        else if (serverStatus == MainWindow.ServerStatus.Updating)
-                        {
-                            Log($"[CMD] Action_Update already updating id={args[1]}");
-                        }
-
-                        await RefreshDynamicServerListAsync(message);
-                    }
-                    else
-                    {
-                        Log($"[CMD] Action_Update server not found id={args[1]}");
-                        await message.Channel.SendMessageAsync($"Server (ID: {args[1]}) does not exists.");
-                    }
+                        serverStatus = WindowsGSM.GetServerStatus(args[1]);
                 });
+
+                if (WindowsGSM == null || !WindowsGSM.IsServerExist(args[1]))
+                {
+                    Log($"[CMD] Action_Update server not found id={args[1]}");
+                    await SendTemporaryMessage(message, $"Server (ID: {args[1]}) does not exists.");
+                    return;
+                }
+
+                Log($"[CMD] Action_Update id={args[1]} status={serverStatus}");
+
+                if (serverStatus == MainWindow.ServerStatus.Stopped)
+                {
+                    Log($"[CMD] Action_Update launching watcher+update id={args[1]}");
+
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await Application.Current.Dispatcher.InvokeAsync(async () =>
+                            {
+                                MainWindow wgsm = (MainWindow)Application.Current.MainWindow;
+                                Log($"[CMD] UpdateServerById BEGIN id={args[1]}");
+                                await wgsm.UpdateServerById(args[1], message.Author.Id.ToString(), message.Author.Username);
+                                Log($"[CMD] UpdateServerById END id={args[1]}");
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            LogError($"UpdateServerById failed id={args[1]}", ex);
+                        }
+                    });
+
+                    await WatchAndRefreshServerStatusAsync(message, args[1], WatchMode.Update);
+                }
+                else if (serverStatus == MainWindow.ServerStatus.Updating)
+                {
+                    await SendTemporaryMessage(message, $"Server (ID: {args[1]}) already updating.");
+                }
+                else
+                {
+                    await SendTemporaryMessage(message, $"Server (ID: {args[1]}) must be stopped before update. Current status: {serverStatus}");
+                }
             }
             else
             {
                 Log($"[CMD] Action_Update invalid usage command={command}");
-                await message.Channel.SendMessageAsync($"Usage: {Configs.GetBotPrefix()}wgsm update `<SERVERID>`");
+                await SendTemporaryMessage(message, $"Usage: {Configs.GetBotPrefix()}wgsm update `<SERVERID>`");
             }
         }
 
@@ -1126,7 +1304,7 @@ namespace WindowsGSM.DiscordBot
             await Task.Run(() => system.GetDiskStaticInfo());
 
             string statsMessage = await BuildStatsMessage(system);
-            await SetDynamicStatusMessageAsync(message, statsMessage);
+            await SendTemporaryMessage(message, statsMessage);
         }
 
         private async Task<string> BuildStatsMessage(SystemMetrics system)
@@ -1182,24 +1360,24 @@ namespace WindowsGSM.DiscordBot
                         if (serverStatus == MainWindow.ServerStatus.Started || serverStatus == MainWindow.ServerStatus.Starting)
                         {
                             var serverTable = WindowsGSM.GetServerTableById(args[1]);
-                            await message.Channel.SendMessageAsync(embed: (await GetServerStatsMessage(serverTable)).Build());
+                            await SendTemporaryEmbed(message, (await GetServerStatsMessage(serverTable)).Build());
                         }
                         else
                         {
-                            await message.Channel.SendMessageAsync($"Server (ID: {args[1]}) currently in {serverStatus} state, not able to gather infos.");
+                            await SendTemporaryMessage(message, $"Server (ID: {args[1]}) currently in {serverStatus} state, not able to gather infos.");
                         }
                     }
                     else
                     {
                         Log($"[CMD] Action_GameServerStats server not found id={args[1]}");
-                        await message.Channel.SendMessageAsync($"Server (ID: {args[1]}) does not exists.");
+                        await SendTemporaryMessage(message, $"Server (ID: {args[1]}) does not exists.");
                     }
                 });
             }
             else
             {
                 Log($"[CMD] Action_GameServerStats invalid usage command={command}");
-                await message.Channel.SendMessageAsync($"Usage: {Configs.GetBotPrefix()}wgsm serverstats `<SERVERID>`");
+                await SendTemporaryMessage(message, $"Usage: {Configs.GetBotPrefix()}wgsm serverstats `<SERVERID>`");
             }
         }
 
@@ -1260,7 +1438,7 @@ namespace WindowsGSM.DiscordBot
                 .AddField($"{Configs.GetBotPrefix()}wgsm stats", "Show system stats", false)
                 .AddField($"{Configs.GetBotPrefix()}wgsm serverstats <SERVERID>", "Show server stats", false);
 
-            await message.Channel.SendMessageAsync(embed: embed.Build());
+            await SendTemporaryEmbed(message, embed.Build());
         }
     }
 }
